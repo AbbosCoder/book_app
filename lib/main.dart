@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 void main() {
-  runApp(VirtualKitobApp());
+  runApp(const VirtualKitobApp());
 }
 
 class VirtualKitobApp extends StatelessWidget {
@@ -17,9 +19,9 @@ class VirtualKitobApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.brown,
-        scaffoldBackgroundColor: Color(0xFFF5F1E8),
+        scaffoldBackgroundColor: const Color(0xFFF5F1E8),
       ),
-      home: KitoblarSahifasi(),
+      home: const KitoblarSahifasi(),
     );
   }
 }
@@ -36,6 +38,20 @@ class Kitob {
     required this.muqova,
     required this.qoshilganVaqt,
   });
+
+  Map<String, dynamic> toJson() => {
+        'nom': nom,
+        'fayl': fayl,
+        'muqova': muqova,
+        'qoshilganVaqt': qoshilganVaqt.toIso8601String(),
+      };
+
+  factory Kitob.fromJson(Map<String, dynamic> json) => Kitob(
+        nom: json['nom'],
+        fayl: json['fayl'],
+        muqova: json['muqova'],
+        qoshilganVaqt: DateTime.parse(json['qoshilganVaqt']),
+      );
 }
 
 class KitoblarSahifasi extends StatefulWidget {
@@ -49,10 +65,32 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
   List<Kitob> kitoblar = [];
 
   @override
+  void initState() {
+    super.initState();
+    _kitoblarniYuklash();
+  }
+
+  Future<void> _kitoblarniSaqlash() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = kitoblar.map((k) => jsonEncode(k.toJson())).toList();
+    await prefs.setStringList('kitoblar', jsonList);
+  }
+
+  Future<void> _kitoblarniYuklash() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = prefs.getStringList('kitoblar') ?? [];
+    setState(() {
+      kitoblar = jsonList
+          .map((jsonStr) => Kitob.fromJson(jsonDecode(jsonStr)))
+          .toList();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -64,9 +102,7 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
             children: [
               _headerQism(),
               Expanded(
-                child: kitoblar.isEmpty
-                    ? _boshQism()
-                    : _kitoblarGridi(),
+                child: kitoblar.isEmpty ? _boshQism() : _kitoblarGridi(),
               ),
             ],
           ),
@@ -79,28 +115,40 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
 
   Widget _headerQism() {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.book, size: 32, color: Color(0xFF8B4513)),
-              SizedBox(width: 12),
-              Text(
-                'Virtual Kutubxona',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5D4037),
-                ),
+              Row(
+                children: const [
+                  Icon(Icons.book, size: 32, color: Color(0xFF8B4513)),
+                  SizedBox(width: 12),
+                  Text(
+                    'Virtual Kutubxona',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5D4037),
+                    ),
+                  ),
+                ],
+              ),
+              // 🔥 YANGI: App info icon
+              IconButton(
+                onPressed: _appInfoKorsatish,
+                icon: const Icon(Icons.info_outline, 
+                                size: 28, 
+                                color: Color(0xFF8B4513)),
               ),
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             '${kitoblar.length} ta kitob',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 16,
               color: Color(0xFF8D6E63),
             ),
@@ -110,16 +158,74 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
     );
   }
 
+  // 🔥 YANGI: App info funksiyasi
+  void _appInfoKorsatish() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFFF5F1E8),
+        title: const Row(
+          children: [
+            Icon(Icons.book, color: Color(0xFF8B4513)),
+            SizedBox(width: 10),
+            Text('Virtual Kitob', 
+                style: TextStyle(color: Color(0xFF5D4037))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ilova haqida:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF5D4037),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Virtual Kitob - bu shaxsiy kutubxonangizni yaratish va PDF kitoblarni saqlash ilovasi.',
+              style: TextStyle(color: Color(0xFF8D6E63)),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Foydalanuvchi haqida:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF5D4037),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sizda ${kitoblar.length} ta kitob mavjud',
+              style: const TextStyle(color: Color(0xFF8D6E63)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Oxirgi kitob: ${kitoblar.isNotEmpty ? kitoblar.last.nom : "Hali kitob yo'q"}',
+              style: const TextStyle(color: Color(0xFF8D6E63)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Yopish', 
+                           style: TextStyle(color: Color(0xFF8B4513))),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _boshQism() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.menu_book_rounded,
-            size: 100,
-            color: Color(0xFFBCAAA4),
-          ),
+          Icon(Icons.menu_book_rounded, size: 100, color: Color(0xFFBCAAA4)),
           SizedBox(height: 20),
           Text(
             'Hali kitoblar yo\'q',
@@ -132,10 +238,7 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
           SizedBox(height: 10),
           Text(
             'Kitob qo\'shish uchun pastdagi tugmani bosing',
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFFA1887F),
-            ),
+            style: TextStyle(fontSize: 16, color: Color(0xFFA1887F)),
           ),
         ],
       ),
@@ -144,8 +247,8 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
 
   Widget _kitoblarGridi() {
     return GridView.builder(
-      padding: EdgeInsets.all(16),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
@@ -160,6 +263,31 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
 
   Widget _kitobKartasi(Kitob kitob) {
     return GestureDetector(
+      onLongPress: () {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Kitobni o\'chirish'),
+            content: Text('"${kitob.nom}" kitobni o\'chirmoqchimisiz?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Yo\'q'),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    kitoblar.remove(kitob);
+                  });
+                  _kitoblarniSaqlash();
+                  Navigator.pop(context);
+                },
+                child: const Text('Ha'),
+              ),
+            ],
+          ),
+        );
+      },
       onTap: () {
         Navigator.push(
           context,
@@ -173,7 +301,7 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
                 color: Colors.black26,
                 blurRadius: 8,
@@ -187,36 +315,24 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
               fit: StackFit.expand,
               children: [
                 kitob.muqova.isNotEmpty
-                    ? Image.file(
-                        File(kitob.muqova),
-                        fit: BoxFit.cover,
-                      )
+                    ? Image.file(File(kitob.muqova), fit: BoxFit.cover)
                     : Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFF6D4C41),
-                              Color(0xFF4E342E),
-                            ],
+                            colors: [Color(0xFF6D4C41), Color(0xFF4E342E)],
                           ),
                         ),
-                        child: Icon(
-                          Icons.book,
-                          size: 60,
-                          color: Colors.white54,
-                        ),
+                        child: const Icon(Icons.book,
+                            size: 60, color: Colors.white54),
                       ),
                 Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black87,
-                      ],
+                      colors: [Colors.transparent, Colors.black87],
                     ),
                   ),
                 ),
@@ -225,19 +341,14 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     child: Text(
                       kitob.nom,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black,
-                            blurRadius: 4,
-                          ),
-                        ],
+                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -258,14 +369,13 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
       width: 60,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFF8B4513), Color(0xFF5D4037)],
-        ),
+        gradient:
+            const LinearGradient(colors: [Color(0xFF8B4513), Color(0xFF5D4037)]),
         boxShadow: [
           BoxShadow(
-            color: Color(0xFF8B4513).withOpacity(0.5),
+            color: const Color(0xFF8B4513).withOpacity(0.5),
             blurRadius: 12,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -273,7 +383,7 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
         onPressed: _kitobQoshish,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        child: Icon(Icons.add, size: 32),
+        child: const Icon(Icons.add, size: 32),
       ),
     );
   }
@@ -299,155 +409,141 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
     await showDialog(
       context: context,
       builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
+        return StatefulBuilder(builder: (context, setState) {
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F1E8),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Container(
-                padding: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Color(0xFFF5F1E8),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Kitob qo\'shish',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF5D4037),
-                      ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Kitob qo\'shish',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5D4037),
                     ),
-                    SizedBox(height: 24),
-                    GestureDetector(
-                      onTap: () async {
-                        FilePickerResult? result =
-                            await FilePicker.platform.pickFiles(
-                          type: FileType.image,
-                        );
-                        if (result != null) {
-                          setState(() {
-                            muqovaYoli = result.files.single.path;
-                          });
-                        }
-                      },
-                      child: Container(
-                        height: 200,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Color(0xFF8D6E63),
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: muqovaYoli!.isEmpty
-                            ? Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_photo_alternate,
-                                    size: 50,
-                                    color: Color(0xFF8D6E63),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Muqova tanlash',
-                                    style: TextStyle(
-                                      color: Color(0xFF8D6E63),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.file(
-                                  File(muqovaYoli!),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                  ),
+                  const SizedBox(height: 24),
+                  GestureDetector(
+                    onTap: () async {
+                      FilePickerResult? result =
+                          await FilePicker.platform.pickFiles(
+                        type: FileType.image,
+                      );
+                      if (result != null) {
+                        setState(() {
+                          muqovaYoli = result.files.single.path;
+                        });
+                      }
+                    },
+                    child: Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                            color: const Color(0xFF8D6E63), width: 2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      child: muqovaYoli!.isEmpty
+                          ? const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate,
+                                    size: 50, color: Color(0xFF8D6E63)),
+                                SizedBox(height: 8),
+                                Text('Muqova tanlash',
+                                    style: TextStyle(color: Color(0xFF8D6E63))),
+                              ],
+                            )
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.file(File(muqovaYoli!),
+                                  fit: BoxFit.cover),
+                            ),
                     ),
-                    SizedBox(height: 20),
-                    TextField(
-                      controller: nomController,
-                      decoration: InputDecoration(
-                        labelText: 'Kitob nomi',
-                        labelStyle: TextStyle(color: Color(0xFF8D6E63)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Color(0xFF8B4513),
-                            width: 2,
-                          ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: nomController,
+                    decoration: InputDecoration(
+                      labelText: 'Kitob nomi',
+                      labelStyle:
+                          const TextStyle(color: Color(0xFF8D6E63)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF8B4513),
+                          width: 2,
                         ),
                       ),
                     ),
-                    SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              side: BorderSide(color: Color(0xFF8D6E63)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Bekor qilish',
-                              style: TextStyle(color: Color(0xFF8D6E63)),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            side:
+                                const BorderSide(color: Color(0xFF8D6E63)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
+                          child: const Text('Bekor qilish',
+                              style: TextStyle(color: Color(0xFF8D6E63))),
                         ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              if (nomController.text.isNotEmpty) {
-                                this.setState(() {
-                                  kitoblar.add(
-                                    Kitob(
-                                      nom: nomController.text,
-                                      fayl: faylYoli,
-                                      muqova: muqovaYoli!,
-                                      qoshilganVaqt: DateTime.now(),
-                                    ),
-                                  );
-                                });
-                                Navigator.pop(context);
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF8B4513),
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Qo\'shish',
-                              style: TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (nomController.text.isNotEmpty) {
+                              // 🔥 MUHIM: Yangi kitob qo'shgandan so'ng setState chaqiramiz
+                              Navigator.pop(context); // Avval dialogni yopamiz
+                              setState(() {
+                                kitoblar.add(Kitob(
+                                  nom: nomController.text,
+                                  fayl: faylYoli,
+                                  muqova: muqovaYoli ?? '',
+                                  qoshilganVaqt: DateTime.now(),
+                                ));
+                              });
+                              _kitoblarniSaqlash(); // 🔥 Saqlash
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8B4513),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
+                          child: const Text('Qo\'shish',
+                              style: TextStyle(color: Colors.white)),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        );
+            ),
+          );
+        });
       },
     );
   }
@@ -455,154 +551,66 @@ class _KitoblarSahifasiState extends State<KitoblarSahifasi> {
 
 class KitobOqishSahifasi extends StatefulWidget {
   final Kitob kitob;
-
   const KitobOqishSahifasi({super.key, required this.kitob});
 
   @override
   _KitobOqishSahifasiState createState() => _KitobOqishSahifasiState();
 }
 
-class _KitobOqishSahifasiState extends State<KitobOqishSahifasi>
-    with TickerProviderStateMixin {
+class _KitobOqishSahifasiState extends State<KitobOqishSahifasi> {
   int? sahifalar;
-  int joriyShifa = 0;
+  int joriySahifa = 0;
   bool tayyor = false;
   PDFViewController? _pdfController;
-  late AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 600),
-    );
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF2C2416),
+      backgroundColor: const Color(0xFF2C2416),
       appBar: AppBar(
-        backgroundColor: Color(0xFF3E2723),
-        elevation: 0,
-        title: Text(
-          widget.kitob.nom,
-          style: TextStyle(fontWeight: FontWeight.w500),
-        ),
+        backgroundColor: const Color(0xFF3E2723),
+        title: Text(widget.kitob.nom),
         actions: [
           if (sahifalar != null)
             Center(
               child: Padding(
-                padding: EdgeInsets.only(right: 16),
-                child: Text(
-                  '${joriyShifa + 1} / $sahifalar',
-                  style: TextStyle(fontSize: 16),
-                ),
+                padding: const EdgeInsets.only(right: 16),
+                child: Text('${joriySahifa + 1} / $sahifalar'),
               ),
             ),
         ],
       ),
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF3E2723), Color(0xFF2C2416)],
-              ),
-            ),
-            child: PDFView(
-              filePath: widget.kitob.fayl,
-              enableSwipe: true,
-              swipeHorizontal: true,
-              autoSpacing: false,
-              pageFling: true,
-              pageSnap: true,
-              defaultPage: joriyShifa,
-              fitPolicy: FitPolicy.BOTH,
-              onRender: (pages) {
-                setState(() {
-                  sahifalar = pages;
-                  tayyor = true;
-                });
-              },
-              onViewCreated: (PDFViewController controller) {
-                _pdfController = controller;
-              },
-              onPageChanged: (int? page, int? total) {
-                setState(() {
-                  joriyShifa = page ?? 0;
-                });
-              },
-            ),
+          PDFView(
+            filePath: widget.kitob.fayl,
+            enableSwipe: true,
+            swipeHorizontal: true,
+            autoSpacing: false,
+            pageFling: true,
+            onRender: (pages) {
+              setState(() {
+                sahifalar = pages;
+                tayyor = true;
+              });
+            },
+            onViewCreated: (controller) {
+              _pdfController = controller;
+            },
+            onPageChanged: (page, total) {
+              setState(() {
+                joriySahifa = page ?? 0;
+              });
+            },
           ),
           if (!tayyor)
-            Center(
+            const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B4513)),
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(Color(0xFF8B4513)),
               ),
             ),
         ],
-      ),
-      bottomNavigationBar: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: Color(0xFF3E2723),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 8,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: Icon(Icons.first_page, color: Colors.white),
-              iconSize: 32,
-              onPressed: () {
-                _pdfController?.setPage(0);
-              },
-            ),
-            IconButton(
-              icon: Icon(Icons.chevron_left, color: Colors.white),
-              iconSize: 32,
-              onPressed: joriyShifa > 0
-                  ? () {
-                      _pdfController?.setPage(joriyShifa - 1);
-                    }
-                  : null,
-            ),
-            IconButton(
-              icon: Icon(Icons.chevron_right, color: Colors.white),
-              iconSize: 32,
-              onPressed: sahifalar != null && joriyShifa < sahifalar! - 1
-                  ? () {
-                      _pdfController?.setPage(joriyShifa + 1);
-                    }
-                  : null,
-            ),
-            IconButton(
-              icon: Icon(Icons.last_page, color: Colors.white),
-              iconSize: 32,
-              onPressed: () {
-                if (sahifalar != null) {
-                  _pdfController?.setPage(sahifalar! - 1);
-                }
-              },
-            ),
-          ],
-        ),
       ),
     );
   }
